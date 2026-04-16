@@ -1,0 +1,798 @@
+\documentclass[submit]{ipsj}
+%\documentclass{ipsj}
+
+% \usepackage{graphicx}
+
+\usepackage{latexsym}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{cite}
+\usepackage{graphicx}
+\usepackage{multirow}
+\usepackage{subcaption}
+
+% \usepackage[dvipdfmx]{graphicx}
+
+\def\Underline{\setbox0\hbox\bgroup\let\\\endUnderline}
+\def\endUnderline{\vphantom{y}\egroup\smash{\underline{\box0}}\\}
+\def\|{\verb|}
+
+\setcounter{巻数}{59}
+\setcounter{号数}{1}
+\setcounter{page}{1}
+
+
+\受付{2016}{3}{4}
+\再受付{2015}{7}{16}   %省略可能
+\再再受付{2015}{7}{20} %省略可能
+\再再受付{2015}{11}{20} %省略可能
+\採録{2016}{8}{1}
+
+
+
+
+\begin{document}
+
+
+\title{自己教師あり学習を用いた
+産業現場における作業認識手法}
+
+\etitle{Long-term Industrial Activity Recognition \\ using Self-supervised Learning}
+
+
+\affiliate{NU}{名古屋大学大学院 工学研究科\\Graduate School of Engineering, Nagoya University}
+\affiliate{NUI}{名古屋大学 未来社会創造機構\\Institutes of Innovation for Future Society, Nagoya Univer- sity}
+
+\author{渡邊 企章}{KISHO WATANABE}{NU}
+\author{加納 一馬}{KAZUMA KANO}{NU}
+\author{Tahera Hossain}{TAHERA HOSSAIN}{NU}
+\author{浦野 健太}{KENTA URANO}{NU}
+\author{米澤 拓郎}{TAKURO YONEZAWA}{NU}
+\author{河口 信夫}{NOBUO KAWAGUCHI}{NU,NUI}
+
+\begin{abstract}
+産業現場における人の作業内容のデータ化・分析は，
+業務効率の評価や改善を目的としたデジタルツインの実現において重要な要素である．
+なかでも，スマートフォンやウェアラブルデバイスに搭載されたIMUセンサを用いた
+作業認識は，追加設備を必要としない手法として注目されている．
+一方で，作業は複数の動作が時間的に連続して構成される行動であるため，
+これをセンサデータから自動認識するのは容易ではなく，
+高精度な認識には大規模なラベル付きデータが必要とされている．
+しかし，実環境におけるアノテーションコストは高く，
+これが作業認識技術の実用化を妨げる要因となっている．
+本研究では，この課題に対し，自己教師あり学習と教師あり学習を段階的に組み合わせた
+作業認識フレームワーク（ActCNN-T）を提案する．
+提案手法では，自己教師あり学習により短期的な動作特徴をロバストに抽出した上で，
+Transformer によって長期的な作業文脈をモデル化し，
+少量のラベル付きデータでも高精度な作業認識を可能とする．
+物流倉庫における実作業データセットおよび OpenPack データセットを用いた評価実験では，
+提案手法は既存手法を一貫して上回る認識性能を示すとともに，被験者間での性能ばらつきが小さく，
+実環境における作業認識に対する高い汎化性能を確認した．
+\end{abstract}
+
+
+\begin{jkeyword}
+行動認識，自己教師あり学習，Transformer，ウェアラブルセンサ，IMU
+\end{jkeyword}
+
+\begin{eabstract}
+In industrial environments, acquiring and analyzing data on human work activities is essential for digital twin applications that aim to evaluate and improve operational efficiency.
+Activity recognition using inertial sensors embedded in smartphones and wearable devices has therefore attracted attention as a low-cost and easily deployable approach.
+However, work activities consist of multiple actions occurring sequentially over time, making automatic recognition from sensor data challenging. High recognition accuracy typically requires large amounts of labeled data, but the high annotation cost in real-world environments hinders practical deployment.
+To address this issue, we propose ActCNN-T, a task recognition framework that combines self-supervised and supervised learning in a stage-wise manner. The proposed method learns robust short-term action representations from unlabeled data using self-supervised learning and models long-term work context with a Transformer, enabling accurate task recognition with limited labeled data.
+Experiments on a real-world logistics warehouse dataset and the OpenPack dataset show that the proposed method consistently outperforms existing approaches while achieving stable performance across subjects, demonstrating strong generalization capability in industrial settings.
+\end{eabstract}
+
+\begin{ekeyword}
+Human Activity Recognition, Self-supervised Learning, Transformer, Wearable Sensors, IMU
+\end{ekeyword}
+
+\maketitle
+
+%1
+\section{はじめに}
+
+近年，製造業や物流業ではDX化が進み，人・設備・モノの状態をデータ化して業務効率の分析や改善につなげる「デジタルツイン」に関する取り組みが拡大している\cite{kaiblinger2022state, leng2019digital}．
+また，全体最適化の実現のために，設備や荷物だけでなく，「人」のデータ活用も注目されている．例えば，物流倉庫で人の移動軌跡を可視化し，動線の統計分析やシミュレーションに活用する研究が進められている\cite{mori2025wideangle,11213222,kawaguchi2025digitization}．また，人の作業内容をデータ化し，効率評価や安全管理に役立てる試みも行われている\cite{niemann2021context}．
+特に，スマートフォンやウェアラブルセンサに搭載されたIMUを用いた自動認識手法は追加設備を必要とせず，作業者の動作を詳細に捉えられるため，有望なアプローチとして注目されている\cite{straczkiewicz2021systematic}．
+ただし，IMUによる行動認識は通常，分類モデルを用いて数秒単位のセンサデータから動作を認識する枠組みが中心であり，複数の動作が連続して構成されるような実作業の認識は容易ではない．そのため，高精度な認識モデルの構築には大規模なラベル付きデータが必要とされているが，現場ごとに認識対象のニーズに合わせたラベル付きデータを大量に用意するのは現実的ではなく，このアノテーションコストが作業認識技術実用化の妨げとなっている．例えば，産業領域における大規模マルチモーダルデータセットであるOpenPackデータセット\cite{yoshimura2024openpack}では，1セッション（20回の梱包作業・約30分）のデータに対し，アノテーション作業だけで約5時間を要したと報告されている．また，データセット全体（約52時間）の整備については複数名の専門アノテータが約1年にわたり作業を行ったと言及されており，ラベル付きデータの大規模収集が容易でないと分かる．
+このような課題に対し，近年では半自動アノテーション手法\cite{higashiura2024semi}や，自己教師あり学習・ドメイン適応に基づく少量ラベル下での認識手法\cite{chakma2023domain,yuan2024self}が活発に研究されている．
+特に自己教師あり学習を用いた手法は，ラベルのないデータから個人差や環境変動に頑健な特徴を獲得し，限られたラベルでも高精度な識別を可能にする点で有望である．
+
+本研究では，産業現場における作業認識の具体例として，
+物流倉庫における人手作業を対象に扱う．
+物流倉庫では，図\ref{fig:workflow}に示すように入荷から格納に至るまでの工程において，
+検品，仕分け，搬送といった
+自動化が難しい作業が人手で行われている．現状は経験則によってレイアウトやシフトが設定されていることが多いが，これらを定量的に評価して最適化していくためには，人の作業内容のデータ化が重要な要素となる．
+
+提案手法では，IMUデータを用いた作業認識において，自己教師あり学習を活用して少量ラベルでも高精度に予測可能な作業認識フレームワークを提案する．
+評価の際は物流倉庫において収集した実データを用いて提案手法の有効性を詳細に検証する．
+さらに，提案手法が特定の環境や作業内容に依存しないことを確認するため，
+別のデータセットを用いた検証も行う．
+
+
+本研究の主な貢献は以下のとおりである．
+
+\vspace{0.5\baselineskip}
+\begin{itemize}
+\item 産業現場における作業認識を対象とし， 短期的な動作特徴抽出と長期的な作業文脈モデリングを分離して扱う 作業認識フレームワーク（ActCNN-T）を提案した．
+\item 物理的整合性を考慮したデータ拡張を用いた
+自己教師あり学習を産業現場のセンサデータに導入し，被験者間差異や環境変動に対してロバストな動作表現が獲得可能であることを示した．
+\item 実物流倉庫データセットおよび OpenPack データセットを用いた評価により， 提案手法がベースラインモデルを上回る性能を示し，提案手法の有効性を示した．
+\end{itemize}
+
+
+% \begin{figure*}[t]
+%   \centering
+%   \includegraphics[width=0.92\linewidth, trim=10 37 10 15, bb=0 0 1407 520]{figure/overview.pdf} 
+%   \caption{提案手法の概要：ActCNN-Transformer (ActCNN-T)}
+%   \label{fig:overview}
+% \end{figure*}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth, trim=0 0 0 0, clip, bb=0 0 741 251]{figure/workflow.pdf} 
+  \caption{物流倉庫における実作業の例}
+
+  \label{fig:workflow}
+\end{figure}
+
+
+\section{関連研究}
+\subsection{センサベースの行動認識}
+
+スマートフォンに内蔵された加速度センサや角速度センサを用いたセンサベースの行動認識（Human Activity Recognition, HAR）は，歩行や座位，階段昇降といった日常的な動作の認識に広く用いられてきた \cite{lara2012survey,straczkiewicz2021systematic}．初期の研究では，平均や分散などの統計量を選定し，SVM や GBDT といった機械学習手法で分類するアプローチが主流であった \cite{lara2012survey}．
+
+近年では，CNN，LSTM，Transformer などの深層学習モデルにより，センサデータから直接特徴量を抽出する end-to-end 型の手法が広く研究されている \cite{ordonez2016deep, dirgova2022wearable}．これらの手法は日常生活だけでなく，物流や製造業などの産業現場においても，作業記録，業務分析，安全管理などの目的で活用が進んでいる \cite{niemann2021context}．
+しかし，産業現場における実作業認識は従来の行動認識が主に対象としてきた「歩行」「座位」といった短時間で完結する動作と異なり，複数の動作の連続で構成されるため，短時間のセンサ系列を入力として行動を認識する枠組みをそのまま適用することは難しい．作業の識別には，動作の並びや遷移といった長期的な時系列文脈を捉える必要があるが，長期依存を扱えるモデルを安定して学習させるには，単一動作の認識以上に多くのラベル付きデータが求められる．しかし，産業現場における作業データのアノテーションは時間的コストが大きく\cite{yoshimura2024openpack}，十分なデータ量の確保が実運用上の大きな障壁となっている．
+
+
+
+\subsection{自己教師あり学習(表現学習)の活用}
+\subsubsection{行動認識における自己教師ありの活用と動向}
+ラベル付きデータの収集コストを低減する手法として，センサベースの行動認識では自己教師あり学習（Self-Supervised Learning, SSL）が広く用いられている\cite{logacjov2024self}．自己教師あり学習はラベルなしセンサデータを用いて予め設定した擬似タスクを解く中で，後の行動認識に有用な特徴表現を獲得する手法である，学習によって得られた特徴表現は，少量のラベル付きデータを用いて軽量な分類ヘッドを学習し，分類などの下流タスクへ転移できる．
+自己教師あり学習の代表的な手法として，以下のような手法が提案されている．
+Multi-task SSL\cite{saeed2019multi} は，スケーリングやノイズ付加といったデータ拡張が入力信号に適用されたかを識別する複数の補助タスクを同時に学習し，センサデータに共通する有用な特徴表現を獲得する．
+SimCLRHAR\cite{tang2020exploring, khaertdinov2021contrastive}やCSSHAR\cite{khaertdinov2021contrastive}は，同一の入力信号に対して異なるデータ拡張を施したペアを正例とし，それらの埋め込み表現の類似度を最大化する対照学習手法である．
+LIMU-BERT\cite{xu2021limu} は，時系列信号の一部をマスクし，欠損部分を復元するタスクを通じて表現学習を行う再構成型の手法である．
+マスク信号復元に基づく学習により，時系列データの周期性や時間的構造を捉えることが可能となる．
+
+
+\subsubsection{作業認識への適用における課題}
+産業現場における作業認識では，複数の動作が連続する長期的な文脈を捉えながら，作業者間のばらつきに依存しないロバストな特徴表現を得ることが重要である．しかし，既存の自己教師あり学習手法では，この二つの要件を同時に満たすことは容易ではない．
+
+短期的な動作認識を対象とした既存研究では，自己教師あり学習によって歩行や静止といった短時間の動作ごとに異なる特徴表現を形成できると報告されており，SSL の有効性が示されている\cite{saeed2019multi,  xu2021limu}．一方で，これらの手法はいずれも数秒程度の短期ウィンドウを対照として設計されており，ウィンドウを長時間化するだけでは動作遷移や作業手順といった長期的な文脈情報が適切に反映されるとは限らない．例えば対照学習型手法では局所的な不変性が強調されるため長期構造の抽出が難しく，再構成型手法はセンサのノイズや局所的変動の予測にモデル容量を割くため\cite{logacjov2024self}，長期的な作業プロセスの構造的特徴を捉えにくい．
+
+長期的なセンサパターンを扱う試みとして MoIL\cite{xia2024preliminary} が提案されており，反復的な動作パターン（Motif）に着目して中長期の構造を特徴表現として抽出できることが示されている．しかし，Motifの形成には個人の動作癖やセンサ姿勢の違いが強く反映されるため，学習された表現はユーザ特性に依存しやすく，訓練データに含まれない作業者に対して性能が低下すると報告されている．
+
+以上より，SSL は短期動作の認識には有効であるものの，長期文脈の理解とユーザロバスト性を同時に満たした特徴表現をラベルなしデータから直接獲得することは容易ではない．そこで本研究では，長期構造とユーザロバスト性を同時に学習させるのではなく，自己教師あり学習によるロバストな基礎動作表現の獲得と，教師あり学習による作業文脈のモデリングを段階的に組み合わせ，少量のラベルでも長期的な作業を高精度に認識できるフレームワークを提案する．
+
+
+\section{提案手法}
+\subsection{モデルの概要（ActCNN-T）}
+本研究では，自己教師あり学習と教師あり学習を段階的に組み合わせた作業認識フレームワーク（ActCNN-T）を提案する．
+本手法の基本的な考え方は，センサデータから作業に関する特徴を直接抽出するのではなく，作業を短時間に観測される基本動作の系列として捉え，その時間的構造から作業を推定する点にある．提案手法の概要を図\ref{fig:overview}に示す．第1段階では，ラベルなしのセンサデータに対して自己教師あり学習を適用し，一般化可能な基本動作を捉えるCNNを事前学習する．
+第2段階では，ラベル付きデータを用いてTransformer Encoder, MLPを含む長期時系列分類モデルを学習する．この際，CNNの重みは固定（もしくはfine-tuning）する．
+この学習により，基本動作の時系列と作業との対応関係を効果的に学習が可能となる．
+
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.97\linewidth, trim=0 0 0 0, bb=0 0 607 388]{figure/ActCNN-T.pdf} 
+  \caption{提案手法の概要（ActCNN-T）}
+  \label{fig:overview}
+\end{figure}
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.85\linewidth, trim=0 0 0 0,bb=0 0 1185 262]{figure/cssharplus.pdf} 
+  \caption{物理的整合性を考慮した拡張に基づく自己教師あり学習（CSSHAR+）}
+  \label{fig:simclr}
+\end{figure*}
+
+
+
+\begin{table*}[t]
+\centering
+\caption{Hybrid Augmentation moduleの設計}
+\begin{tabular}{l|p{2.9cm}|p{2.8cm}|p{6.0cm}}
+\hline
+Augmentation (Prob.) & Purpose & Application Unit & Method \\
+\hline
+ノイズ追加 (1.0)
+& センサノイズの再現
+& Channel-wise
+& 平均0のガウスノイズを追加（std $=0.05\sigma_s$） \\
+
+スケーリング (0.5)
+& 動作強度・感度差
+& Channel-wise
+& 係数を乗じて振幅を変化（$\sim \mathcal{N}(1.0,\,0.7\sigma_s)$） \\
+
+回転 (0.5)
+& センサ装着方向のずれ
+& Synchronized
+& Acc/Gyroに同一回転行列を適用（角度 $\pm 30^\circ$）） \\
+
+時間シフト (0.5)
+& 動作開始時刻のずれ
+& Synchronized
+& 時間軸方向にランダムシフト（最大2秒） \\
+
+時間歪み (0.2)
+& 動作速度のばらつき
+& Channel-wise
+& 非線形な時間伸縮（3次スプライン，制御点4） \\
+
+順序入れ替え (0.2)
+& 局所的順序の変動
+& Channel-wise
+& 信号の分割と順序入れ替え（分割数4） \\
+\hline
+\end{tabular}
+\label{tab:augmentation}
+\end{table*}
+
+
+% 学習の際はSoftmax関数により得られた3クラスの確率分布を出力し，正解ラベルと比較して交差エントロピー損失を最小化する．
+
+% モデルの学習の際，CNNはラベルなしデータで学習し，TransformerおよびMLPをラベル付き正解データで学習する．この際CNNは事前学習済みとして重みを固定する．
+
+\subsection{CNNの自己教師あり学習}
+\subsubsection{SimCLRと行動認識への応用}
+ラベルなしデータから動作特徴を学習する手法として，本研究ではSimCLRに基づく自己教師あり学習手法を用いて CNN を事前学習する．
+SimCLR は，同一入力に異なる変換を施して二つの拡張データを生成し，それらの特徴表現を近づける対照学習により，意味的に有用な表現を獲得する手法である~\cite{chen2020simple}．
+
+この枠組みはセンサ時系列データにも応用されておりSimCLRHAR，
+CSSHARなどが代表的な手法である．これらの手法では，SimCLRの枠組みに基づき，センサデータに対してノイズ付加やスケーリング，回転などの拡張を用いて対照学習を行うと，装着条件や個人差に頑健な動作表現が得られることが報告されている．
+
+\subsubsection{物理的整合性を考慮したデータ拡張（CSSHAR+）}
+本研究における事前学習の目的は，
+短時間のセンサ系列から，
+同一の基本動作に由来する信号が特徴空間上で近接するような,
+ロバストな動作特徴表現を獲得することである．
+この目的を達成するためには，
+センサに適用するデータ拡張が，
+実環境で生じうる物理的変動を適切に再現していることが重要となる．
+一方で，物理的整合性を大きく損なう変換であっても，
+表現学習の観点では有効に機能する場合があることが示唆されている
+\cite{tang2020exploring,khaertdinov2021contrastive}．
+
+そこで本研究では，CSSHARの枠組みを拡張し，図\ref{fig:simclr}に示すように，データ拡張の性質に応じて適用確率を制御する Hybrid Augmentation Module を導入する． 具体的には，ノイズ付加や回転といった物理的整合性を保つ拡張 (Natural Transformation) を学習の基盤として高い確率で適用する．一方で，チャネルごとの時間伸縮やセグメント入れ替えなど，物理的意味を大きく変化させる構造的摂動 (Hard Transformation) については，学習の安定性を損なわないよう低い確率で補助的に適用する． これにより，物理的整合性を保った動作表現の学習と，表現の多様性を高める正則化効果とのバランスを最適化している． このような拡張戦略を採用した手法を CSSHAR+ と呼び，本研究で用いた拡張の一覧と適用確率を表~\ref{tab:augmentation} に示す．選定した拡張と適用確率は予備実験に基づいて設定されたものである．
+% \begin{itemize}
+%   \item \textbf{ノイズ追加(1.0)}：元の信号にランダムなノイズ（ジッター）を加える．デバイスの特性や細かな動作の違いによるノイズを再現する．
+%   \item \textbf{スケール変換(0.5)}：信号の振幅をランダムな値で乗算する．動作の速度や強度の違いを再現する．
+%   \item \textbf{回転(0.5)}：信号をセンサ軸に沿ってランダムな角度で回転させる．センサー配置の違いを再現する．
+%   \item \textbf{時間シフト(0.5)}：信号を時間軸方向にシフトさせてタイミングの違いを再現する．
+%   \item \textbf{時間歪み(0.5)}：信号の一部を時間方向に歪ませる．動作の速さの違いを再現する．
+% \end{itemize}
+
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.85\linewidth, trim=0 0 0 10, clip, bb=0 0 1103 379]{figure/NetworkArchitecture.pdf}
+  \caption{ActCNN-Tのアーキテクチャ} 
+  \label{fig:architecture}
+\end{figure*}
+
+
+
+\subsubsection{NT-Xent損失の計算}
+SimCLRに基づく対照学習手法では，ランダムな拡張で生成した2つの系列を共通のネットワークで特徴ベクトルに変換し，それらの特徴表現が近くなるように学習を進める．CSSHAR+でもこれと同様の流れで学習を行う．
+具体的には，ミニバッチ内の各サンプル \(\boldsymbol{x}\) に対して，異なる2種類のランダムな変換を適用し，それぞれから得られた2つの系列 \(\tilde{\boldsymbol{x}}_i\), \(\tilde{\boldsymbol{x}}_j\) を正例ペアとする．  
+この処理によって，バッチサイズが \(N\) の場合，\(2N\) 個の変換済みサンプルが得られる．  
+それぞれのサンプルは共通のエンコーダで特徴ベクトル \(\boldsymbol{h}_i\), \(\boldsymbol{h}_j\) に変換された後，さらに小さな空間へ写像するプロジェクション層を通して，最終的な表現 \(\boldsymbol{z}_i\), \(\boldsymbol{z}_j\) となる．  
+各正例ペア\((i, j)\)に対して，他の \(2N - 2\) 個の埋め込みを負例として扱い，以下のNT-Xent（Normalized Temperature-scaled Cross Entropy）損失\cite{chen2020simple} を最小化し，正例間の距離を縮め，負例とは遠ざけるように学習を行う．
+
+
+\begin{equation}
+  \ell(i, j) = -\log \frac{\exp\left( \mathrm{sim}(\mathbf{z}_i, \mathbf{z}_j) / \tau \right)}{\sum_{k=1}^{2N} I_{[k \ne i]} \exp\left( \mathrm{sim}(\mathbf{z}_i, \mathbf{z}_k) / \tau \right)}
+\end{equation}
+
+  
+ここで，$\mathrm{sim}(\mathbf{z}_i, \mathbf{z}_j)$ は通常，コサイン類似度によって定義される．$\tau$ はスケーリング係数として働き，値が小さいほど類似度の違いを強調する．
+また，$I_{[k \ne i]}$ はインデックス $k \ne i$ の時に1，$k=1$の時に0をとる指示関数（Indicator Function）である．
+この損失により，動作の識別性を保ちつつ，センサ値の変動に強い表現を学習できる．
+
+\subsubsection{CSSHAR+の詳細}
+CSSHAR+では，CNNからなるエンコーダと，
+その出力を低次元空間へ写像するMLPから構成されるネットワークを用いる．
+訓練対象となるエンコーダは，3.2節で述べた短時間ウィンドウごとに基本動作特徴を抽出するCNNである．
+
+入力となる短時間ウィンドウ
+$\boldsymbol{x}_i \in \mathbb{R}^{C \times L_{\mathrm{short}}}$
+に対して，2種類のランダムなデータ拡張を適用し，
+同一ウィンドウに由来する2つのビューを生成する．
+これらのビューは，共通のCNNによって埋め込まれ，
+それぞれ動作特徴ベクトル
+$\boldsymbol{h}_i, \boldsymbol{h}_j \in \mathbb{R}^{d}$
+として表現される．
+
+得られた特徴ベクトルは，MLPからなるプロジェクションヘッドに入力され，
+低次元の特徴ベクトル
+$\boldsymbol{z}_i, \boldsymbol{z}_j \in \mathbb{R}^{d'}$
+へと写像される．
+本研究では，プロジェクションヘッドによって特徴次元を圧縮し，
+対照学習に適した表現空間への再マッピングを行う．
+
+これらの低次元特徴ベクトルに対して，
+NT-Xent損失を用いた対照学習を行うことで，
+同一入力に由来する特徴表現は近づき，
+異なる入力に由来する表現は遠ざかるように学習が進む．
+これによって，ラベルなしで動作特徴抽出器の訓練が可能となる．
+
+\subsection{ActCNN-Tの詳細}
+提案である作業認識モデルActCNN-Tのアーキテクチャの詳細を図\ref{fig:architecture}に示す．
+本モデルは，短時間ごとに基本動作表現を抽出する
+事前学習済みCNNと，その動作特徴系列の文脈をモデル化するTransformer Encoder，
+および分類用MLPから構成される．
+なお，入力信号のサンプリング条件やウィンドウ長，
+ならびにCNNの一部のパラメータは，
+使用するデータセットの特性に応じて設定されるため，
+以下では，モデル構造の概要と各構成要素の役割について述べる．
+
+入力として，長期間にわたる多チャネルのセンサ時系列
+$\boldsymbol{X} \in \mathbb{R}^{C \times L_{\mathrm{long}}}$
+が与えられる．
+ここで，$C$ はセンサチャネル数，$L_{\mathrm{long}}$ は系列全体の長さを表す．
+本研究では，3軸加速度（重力加速度を含む）および3軸角速度を用いるため，$C=6$ とする．
+
+入力系列 $\boldsymbol{X}$ は，一定長の短時間ウィンドウに分割され，
+各ウィンドウは
+$\boldsymbol{x}_t \in \mathbb{R}^{C \times L_{\mathrm{short}}}$
+として表現される．
+各ウィンドウに対して，共通の事前訓練済みCNNを適用することで，
+固定次元の動作特徴ベクトル
+$\boldsymbol{h}_t \in \mathbb{R}^{d}$
+を抽出する．
+この処理により，長期間のセンサ系列は，
+$[\boldsymbol{h}_1, \boldsymbol{h}_2, \dots, \boldsymbol{h}_T]$
+からなる動作特徴系列へと変換される．
+ここで，$T$ はウィンドウ分割後の系列長を表す．
+
+得られた動作特徴系列の先頭には分類用の [CLS] トークンを付加し，
+Positional Encodingを加えた後，
+Transformer Encoderに入力する．
+Transformer Encoderでは自己注意機構を用いて動作間の時間的関係を考慮し，
+作業全体を表す文脈表現を学習する．
+
+Transformer Encoderから得られる [CLS] トークンに対応する出力
+$\boldsymbol{c}_0 \in \mathbb{R}^{d}$
+は，作業全体を要約した文脈ベクトルとして解釈される．
+この文脈ベクトルを入力としてMLPによる分類を行い，
+作業クラスを推定する．
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.82\linewidth,trim= 0 30 0 0,clip,bb=0 0 1142 324]{figure/preprocess2.pdf} % パスと拡張子を適宜変更
+  \caption{センサデータのウィンドウ処理}
+  \label{fig:preprocess}
+\end{figure*}
+
+
+
+\section{評価}
+本研究では，スマートフォンのIMUデータを用いた
+産業現場における作業認識に対する提案手法の有効性を検証するため，
+実環境で収集したデータを用いた評価実験を行う．
+まず，物流倉庫における実作業データを対象として，
+提案手法が実際の作業を高精度に認識できるかを評価する．
+さらに，提案手法の汎用性を確認するため，異なるデータセットを用いた検証も行う．
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth, trim=0 7 0 11,clip,bb=0 0 424 241]{figure/collected_data.png} 
+  \caption{正解データにおけるラベル内訳}
+  \label{fig:label_distribution}
+\end{figure}
+
+
+
+\subsection{データセット}
+% 評価実験では，実環境における作業認識性能を検証するため，
+% 物流倉庫で収集した実作業データを主対象として用いる．
+% さらに，提案手法の汎化性能を確認する目的で，
+% 別のデータセットを用いた評価も行う．
+% 以下では，各データセットの概要を説明する．
+
+\subsubsection{物流倉庫実作業データセット}
+本研究では，始めに物流倉庫入荷場における検品，仕分けなどの実作業に関するデータセットを扱う．
+実際の物流倉庫の作業員に，腰部にスマートフォンを装着した状態で業務を行ってもらい，
+その間の加速度および角速度データを収集した．
+実験ではスマートフォンに内蔵されたIMUから得られた3軸加速度および3軸角速度を100 [Hz]でリサンプリングして使用する．
+
+1日の計測において29名の作業員からデータを収集し，合計196時間分のセンサデータを取得した．
+このうち，一部の被験者については作業中の様子をカメラ映像を参照しながら各時刻に対応する実施作業を人手でラベル付けして，正解データを作成した．
+ラベル付きデータは10名分，合計6時間である．
+
+対象とする作業ラベルは，
+検品（Inspect），仕分け（Sort），搬送（Transport） の3種類である．
+ラベル付きデータにおける各作業の出現割合は，図\ref{fig:label_distribution}に示す通りである．
+
+\subsubsection{OpenPackデータセット}
+提案手法の汎化性能を確認するため，
+公開データセットである OpenPack Dataset~\cite{yoshimura2024openpack} を用いた評価も行う．
+OpenPack Dataset は，物流作業を模した環境において，
+複数の被験者が実施する作業を対象として収集された
+マルチモーダル行動認識データセットであり，10個の作業と27個の動作に関するラベル付きデータが16人の被験者から合計52時間が提供されている．
+
+本研究では，OpenPack Dataset に含まれる IMU データを使用し，
+物流倉庫データセットとは異なる被験者や条件下において，
+提案手法が同様に機能するかを検証する．
+
+
+% \subsection{データ収集}
+% 実際の物流倉庫の作業員に，腰にスマートフォンを装着した状態で
+% 業務を行なってもらい，その間の加速度・角速度センサの値を計測した．
+% 1日の計測で29人，計196時間の加速度・角速度データが収集された．
+% また業務中の様子を録画し，一部の被験者について各時刻に対応する実施作業をラベル付けして
+% 正解データを作成した．
+% 正解データは10人，計6時分を収集した．収集した正解データおける作業ラベルの内訳は図\ref{fig:label_distribution}に示す通りである．
+
+
+\subsection{データのウィンドウ処理}
+収集したセンサデータに施すウィンドウ処理の流れを，
+図\ref{fig:preprocess}に示す．
+まず，CNNの事前学習に用いるラベルなしセンサデータに対しては，
+長時間の時系列データを，CNNの入力長に対応する短時間ウィンドウ単位に分割し，
+これらを入力として SimCLR による自己教師あり事前学習を行う．
+
+一方，作業認識モデルの後続層の学習に用いるラベル付きセンサデータに対しては，
+長時間の時系列データを，作業認識モデルへの入力長に対応するウィンドウ単位に分割し，
+これを一定のストライドで時系列方向にスライドさせながら切り出す．
+各ウィンドウには，
+その中央時刻に対応する作業ラベルを付与し，
+作業認識のための学習データを構築する．
+
+% 推論時には，ウィンドウを比較的短いストライドで逐次的に移動させ，
+% 各ウィンドウの中央時刻に対応する作業を連続的に予測する．
+% 一方，訓練時にはデータの冗長性を抑えるため，
+% 推論時よりも大きなストライドを用いてウィンドウを切り出す．
+
+本実験では，短時間ウィンドウのサイズを4 [s]，長時間ウィンドウのサイズを40 [s]とした．
+また，推論時・学習時のストライドはどちらも4 [s]に設定した．
+
+
+% 各データセットにおけるウィンドウ長やストライドの具体的な設定については，
+% 後述する実験条件の節で詳述する．
+
+\subsection{ベースライン}
+提案手法の有効性を検証するため，
+入力長，事前学習の有無，および時系列モデリング手法の違いに基づいて，
+複数のベースラインモデルを設定する．表~\ref{tab:model_arch} に本実験で用いる認識モデルの概要を示す．
+
+CNN および ActCNN は，短時間のセンサ系列を入力とし，
+CNN によって動作特徴を抽出した後，MLP により分類を行うモデルであり，
+長期的な時系列構造を考慮しない短時間ベースラインとして用いる．
+ActCNN では，CNNに対してCSSHAR+による事前学習を適用する．
+
+DeepConvLSTM（DCL）\cite{ordonez2016deep} は，
+CNN による特徴抽出と LSTM による時系列モデリングを組み合わせた
+代表的な行動認識モデルであり，長期依存関係を考慮する深層学習ベースラインとして採用する．
+
+CNN-T および ActCNN-T は，長時間のセンサ系列を入力とし，
+CNN による特徴抽出と Transformer Encoder による長期文脈モデリングを
+組み合わせた作業認識モデルである．
+ActCNN-TはCNNをCSSHAR+で事前学習した認識モデルである．
+
+
+\begin{table}[t]
+\centering
+\caption{比較対象の認識モデル}
+\label{tab:model_arch}
+\begin{tabular}{l|c|c|c}
+\hline
+Model & Pretraining & Input & Temporal model \\
+\hline
+CNN        & --          & Short (4\,s)  & -- \\
+ActCNN   & \checkmark  & Short (4\,s)  & -- \\
+\hline
+DCL        & --          & Long (40\,s)  & LSTM \\
+CNN-T      & --          & Long (40\,s)  & Transformer \\
+ActCNN-T  & \checkmark  & Long (40\,s)  & Transformer \\
+\hline
+\end{tabular}
+\end{table}
+
+
+\subsection{交差検証による評価}
+評価は，被験者単位での一人抜き交差検証
+（Leave-One-Subject-Out Cross Validation, LOOCV）により行う．
+具体的には，各被験者を1名ずつテストデータとし，
+残りの被験者を訓練データとしてモデルを学習・評価する．
+この手順を全被験者について繰り返し，
+モデルの汎化性能を評価する．
+
+物流倉庫実作業データセットでは，
+190時間分のラベルなしデータを用いてCSSHAR+によるCNN の事前訓練を行う．
+その後，10人分・計6時間のラベル付きデータを用いて，
+被験者間交差検証による作業認識性能を評価する．
+
+OpenPack データセットでは，
+約40時間分のラベルなしセンサデータを用いて
+CNN の事前訓練を行い，
+16人分・計10時間のラベル付きデータを用いて
+被験者間交差検証による評価を行う．
+
+また，評価指標としては多クラス分類問題におけるF1スコアを用いる．
+特に物流倉庫実作業データセットはクラス間の偏りが大きいため，
+各クラスを等しく扱う Macro-F1 スコアに加えて，各クラスのサンプル数に基づく重み付き平均である
+Weighted-F1スコアの両方を採用している．
+
+
+
+\subsection{実験の詳細}
+\subsubsection{モデル設計}
+提案手法である ActCNN-Tは，
+短時間ウィンドウごとに適用されるCNN，
+それらの系列から長期的な作業文脈を捉えるTransformer Encoder，
+および最終的な作業分類を行うMLPから構成される．
+提案モデルのアーキテクチャおよび主要なパラメータは
+Table~\ref{tab:cnn_arch} - \ref{tab:mlp_arch} に示す．
+
+ベースラインモデルは，これらの構成要素の一部を用いて実装されており，パラメータを共有している．
+
+
+
+
+\begin{table}[t]
+\centering
+\caption{CNN encoder architecture}
+\begin{tabular}{l|l}
+\hline
+Component & Configuration \\
+\hline
+Input & IMU ($C \times L_{\text{short}}$) \\
+Conv1 & $C \rightarrow 64$, kernel = 10, stride = 4 \\
+Conv2 & $64 \rightarrow 64$, kernel = 6, stride = 2 \\
+Conv3 & $64 \rightarrow 128$, kernel = 4, stride = 2 \\
+Normalization & Batch Normalization \\
+Activation function & ReLU \\
+Pooling & Global Average Pooling \\
+Dropout rate & 0.3 \\
+Output & Feature vector (128-dim) \\
+\hline
+\end{tabular}
+\label{tab:cnn_arch}
+\end{table}
+
+
+\begin{table}[t]
+\centering
+\caption{Transformer encoder architecture}
+\begin{tabular}{l|l}
+\hline
+Component & Configuration \\
+\hline
+Input & Feature sequence ($W_{\mathrm{num}} \times 128$) \\
+Embedding dimension & 128 \\
+Number of layers & 3 \\
+Attention heads & 4 \\
+Feed-forward dimension & 256 \\
+Positional encoding & Sinusoidal \\
+Dropout rate & 0.1 \\
+Output & context vector (128-dim) \\
+\hline
+\end{tabular}
+\label{tab:transformer_arch}
+\end{table}
+
+
+\begin{table}[t]
+\centering
+\caption{MLP classifier architecture}
+\begin{tabular}{l|l}
+\hline
+Component & Configuration \\
+\hline
+Input & context vector (128-dim) \\
+Linear 1 & $128 \rightarrow 128$ \\
+Linear 2 & $128 \rightarrow K$ \\
+Activation function & ReLU \\
+Dropout rate & 0.3 \\
+Output & $K$ classes \\
+\hline
+\end{tabular}
+\label{tab:mlp_arch}
+\end{table}
+
+
+
+\subsubsection{学習設定}
+本節では，各モデルに共通する学習設定および最適化条件について述べる．
+評価は被験者単位の交差検証に基づいて行い，
+各分割において，1人分を評価用，残りを学習用とし，
+さらに学習データの 10\% を検証用データとして用いた．
+検証データはハイパーパラメータ調整および early stopping に利用した．
+
+CNN の事前学習にはCSSHAR+を用い，ラベルなしセンサデータを用いて
+自己教師あり学習を行った．
+損失関数には NT-Xent 損失を用い，
+バッチサイズ 256，学習率 $1.0 \times 10^{-3}$ の設定のもと，
+Adam\cite{kingma2014adam}最適化手法により最大 100 エポック学習した．
+事前学習によって得られた CNN は，作業認識モデルにおいて特徴抽出器として利用する．
+
+
+作業認識モデルの学習では，CNNを事前学習しない場合は，
+CNNをランダム初期化した上でネットワーク全体をエンドツーエンドで学習した．
+一方，事前学習済み CNN を用いる場合は，
+CNN の重みを固定し，後続の層のみを学習した．
+分類損失としてラベル不均衡を考慮した重み付き交差エントロピー損失を用いた．
+すべての深層学習モデルにおいて，
+バッチサイズ 16，学習率 $1.0 \times 10^{-3}$，
+最大エポック数 30 の設定で Adam により最適化を行った．
+検証損失が連続して改善しない場合には early stopping を適用した．
+
+
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth, trim=0 0 0 0, clip, bb=0 0 856 189]{figure/trusco_scores.png} 
+  \caption{被験者ごとF1スコアの分布（物流倉庫実作業データセット）}
+  \label{fig:trusco_scores}
+\end{figure*}
+
+\begin{figure*}[t]
+  \centering
+  \begin{subfigure}{0.24\linewidth}
+    \includegraphics[
+      height=4.2cm,
+      bb=0 0 272 272,
+      clip
+    ]{figure/trusco_cm_cnn.png}
+    \caption{CNN}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}{0.24\linewidth}
+    \includegraphics[
+      height=4.2cm,
+      bb=0 0 258 272,
+      clip
+    ]{figure/trusco_cm_actcnn.png}
+    \caption{ActCNN}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}{0.24\linewidth}
+    \includegraphics[
+      height=4.2cm,
+      bb=0 0 258 272,
+      clip
+    ]{figure/trusco_cm_cnn-t.png}
+    \caption{CNN-T}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}{0.24\linewidth}
+    \includegraphics[
+      height=4.2cm,
+      bb=0 0 303 276,
+      clip
+    ]{figure/trusco_cm_actcnn-t.png}
+    \caption{ActCNN-T}
+  \end{subfigure}
+  \caption{混同行列の比較（物流倉庫実作業データセット）}
+  \label{fig:confmat_trusco}
+\end{figure*}
+
+
+
+\subsection{評価結果}
+\subsubsection{物流倉庫実作業データセット}
+物流倉庫実作業データセットに対して，被験者を 1 名ずつテストデータとする被験者間交差検証を行い，提案手法の認識性能を評価した．図\ref{tab:trusco_results}に各モデルについて全体の認識性能を示す．ActCNN および ActCNN-Tは，事前学習をしない場合と比べてMacro-F1，Weighted-F1 の両指標が向上しており，
+特にActCNN-Tは両指標において最もスコアが高く，Macro-F1=0.502，Weighted-F1=0.852で3つの作業を分類した．
+なお，本データセットでは作業クラス間の出現頻度の偏りが大きく，少数クラスの誤認識がMacro-F1の全体指標を下げ，両指標の値に差が生じている．
+
+\begin{table}[t]
+\centering
+\caption{全体の認識スコア（物流倉庫実作業データセット）}
+\label{tab:trusco_results}
+\begin{tabular}{l|c|c}
+\hline
+Model & Macro-F1 & Weighted-F1 \\
+\hline
+CNN & 0.375 & 0.710 \\
+ActCNN & 0.405 & 0.749 \\
+DCL & 0.420 & 0.705 \\
+CNN-T & 0.363 & 0.694 \\
+ActCNN-T & \textbf{0.502} & \textbf{0.852} \\
+\hline
+\end{tabular}
+\end{table}
+
+
+図\ref{fig:trusco_scores}は，被験者ごとのWeighted-F1スコアの分布を示したものである．
+長期時系列モデルを用いた手法では高い認識性能が得られる場合もあるが，
+被験者ごとの性能変動が大きい傾向が確認できる．
+これに対し，事前学習を導入した ActCNN-Tでは，
+被験者間のばらつきが相対的に小さく，安定した作業認識が実現されている．
+
+図\ref{fig:confmat_trusco}に各モデルの混同行列を示す．
+CNN 単体では，「仕分け（Sort）」と「搬送（Transport）」の間で顕著な誤分類が見られ，短時間の動作特徴のみでは両作業を十分に区別できていないことが分かる．
+
+これに対し，ActCNN（図\ref{fig:confmat_trusco}(b)）では，仕分けと搬送作業間の混同が低減しており，自己教師あり学習によって動作特徴の表現が改善されていることが確認できる．また，Transformer による時系列モデリングを導入した CNN-T（図\ref{fig:confmat_trusco}(c)）においても，作業文脈の考慮により誤分類が減少している．さらに，事前学習と時系列モデリングを組み合わせた ActCNN-T（図\ref{fig:confmat_trusco}(d)）では，さらに仕分けおよび搬送の混同が大きく改善し，双方において最も高い識別精度が得られている．
+
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth, trim=0 0 0 0, clip, bb=0 0 856 189]{figure/openpack_scores.png} 
+  \caption{被験者ごとF1スコアの分布（OpenPackデータセット）}
+
+  \label{fig:op_scores}
+\end{figure*}
+
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth, trim=0 0 0 0, clip, bb=0 0 1432 194]{figure/openpack_timeline.png} 
+  \caption{作業シーケンスに対する認識結果の例（OpenPackデータセット）}
+
+  \label{fig:timeline}
+\end{figure*}
+
+
+\subsubsection{OpenPackデータセット}
+続いて，OpenPackデータセットを用いてLOOCVによる作業認識性能評価を行った．表\ref{tab:openpack_results}に各モデルの全体性能を示す．本データセットにおいても，提案手法であるActCNN-Tの認識性能が最も高く，Macro-F1=0.864，Weighted-F1=0.879で10個の作業を分類した．また，被験者ごとのWeighted-F1スコアの分布を示す図\ref{fig:op_scores}を見ると，ActCNN-Tは多くの被験者に対して安定して高いF1スコアを示していることが分かる．なお，本データセットにおいてはActCNN単体では単純なCNNとあまり性能が変化しなかった一方で，ActCNN-Tのように長期時系列モデルと組み合わせることで認識性能が改善している様子が確認された．
+
+また，提案手法の実際の作業シーケンスに対する時系列予測の例として，ある被験者（U0207）における約5分間の認識結果を図\ref{fig:timeline}に示す．認識結果と正解ラベルを比べると，多少のラベル変動が確認されるものの，作業全体の推移という観点では，実際の作業シーケンスと整合した予測結果が得られていた．
+
+\begin{table}[t]
+\centering
+\caption{全体の認識スコア（OpenPackデータセット）}
+\label{tab:openpack_results}
+\begin{tabular}{l|c|c}
+\hline
+Model & Macro-F1 & Weighted-F1 \\
+\hline
+CNN & 0.568 & 0.569 \\
+ActCNN & 0.562 & 0.564 \\
+DCL & 0.808 & 0.831 \\
+CNN-T & 0.801 & 0.821 \\
+ActCNN-T & \textbf{0.864} & \textbf{0.879} \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{考察}
+評価結果より，提案手法である ActCNN-T は，両データセットにおいて全体性能および被験者ごとの安定性の両面で最も高い性能を示した．ここでは性能向上の要因について考察する．
+まず短期入力モデル（4 s）について，物流倉庫実作業データセットではCNNにCSSHAR+による自己教師あり学習を導入したActCNNで性能向上がみられ，事前学習が短時間の動作特徴の安定化に安定化に寄与していると示唆された．一方で，OpenPack データセットでは，CNN と ActCNN の性能差は限定的であり，短期入力条件においては，教師あり学習のみでもモデルが十分に学習可能であった可能性が考えられる．
+
+これに対し，長期入力モデル（40 s）では，ActCNN-Tは，CNN-T を一貫して上回る性能を示しており，長期的な作業文脈を扱う条件において，動作特徴の事前学習が特に有効に機能することが分かる．
+混同行列の分析からは，CNN 単体で顕著であった「仕分け（Sort）」と「搬送（Transport）」の混同が，事前学習または時系列モデリングの導入によってそれぞれ緩和され，両者を組み合わせた ActCNN-T では最も安定した識別が達成されていることが確認できる．
+これらの結果は，短期的な動作特徴の表現学習と長期的な作業文脈のモデリングが相補的に機能することを示しており，本研究で採用した段階的な設計方針の妥当性を示唆している．
+
+
+% \hspace{5em}
+
+\section{まとめ}
+本研究では，産業現場における人手作業のデータ化という課題に対し，
+IMU センサを用いた作業認識手法を検討した．
+特に，物流倉庫作業のように複数の動作が連続して構成される実作業では，
+高精度な認識のために大量のラベル付きデータが必要となり，
+アノテーションコストが実用上の大きな障壁となっている．
+この課題に対し，本研究では，
+短期的な動作特徴の抽出と長期的な作業文脈のモデリングを分離して扱う
+作業認識フレームワーク ActCNN-T を提案した．
+自己教師あり学習によってロバストな動作特徴を事前学習し，
+その特徴系列を用いて作業レベルの時系列構造を学習し，
+少量のラベルでも作業認識が可能な枠組みを構築した．
+実物流倉庫データセットおよび OpenPack データセットを用いた評価の結果，
+提案手法はベースラインを上回る認識性能と安定性を示した．
+特に，事前学習による動作特徴の安定化と，
+時系列モデリングによる作業文脈の考慮が相補的に機能することが確認された．
+
+今後は，作業境界を明示的に扱うセグメンテーションモデルとの統合や，
+時系列モデル側への自己教師あり学習の導入などを通じて，
+より実環境に適した作業認識手法への発展が期待される．
+
+
+\begin{acknowledgment}
+本研究は国立研究開発法人新エネルギー・産業技術総合開発機構（NEDO）の委託業務（JPNP23003），科研費挑戦的研究（開拓）JP22K18422，トラスコ中山株式会社に支援いただいている． 
+\end{acknowledgment}
+
+
+
+\bibliography{ubi2025_refs} 
+\bibliographystyle{ipsjunsrt}
+
+
+\end{document}
+
