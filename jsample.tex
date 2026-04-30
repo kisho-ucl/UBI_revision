@@ -10,6 +10,8 @@
 \usepackage{graphicx}
 \usepackage{multirow}
 \usepackage{subcaption}
+\usepackage{makecell}
+\usepackage{array}
 
 % \usepackage[dvipdfmx]{graphicx}
 
@@ -541,15 +543,15 @@ PreCNN-T  & \checkmark  & Long (40\,s)  & Transformer \\
 
 
 \subsection{交差検証による評価}
-評価は，被験者単位での一人抜き交差検証
+モデルの認識精度の評価は，被験者単位での一人抜き交差検証
 （Leave-One-Subject-Out Cross Validation, LOOCV）により行う．
 具体的には，各被験者を1名ずつテストデータとし，
 残りの被験者を訓練データとしてモデルを学習・評価する．
 この手順を全被験者について繰り返し，
-モデルの汎化性能を評価する．
+モデルの認識精度や汎化性能を評価する．
 
 物流倉庫実作業データセットでは，
-190時間分のラベルなしデータを用いてCSSHAR+によるCNN の事前訓練を行う．
+190時間分のラベルなしデータを用いてSimCLRによるCNN の事前訓練を行う．
 その後，10人分・計6時間のラベル付きデータを用いて，
 被験者間交差検証による作業認識性能を評価する．
 
@@ -568,7 +570,7 @@ Weighted-F1スコアの両方を採用している．
 
 \subsection{実験の詳細}
 \subsubsection{モデル設計}
-提案手法である ActCNN-Tは，
+自己教師あり学習を活用した作業認識モデルPreCNN-Tは，
 短時間ウィンドウごとに適用されるCNN，
 それらの系列から長期的な作業文脈を捉えるTransformer Encoder，
 および最終的な作業分類を行うMLPから構成される．
@@ -650,7 +652,7 @@ Output & $K$ classes \\
 さらに学習データの 10\% を検証用データとして用いた．
 検証データはハイパーパラメータ調整および early stopping に利用した．
 
-CNN の事前学習にはCSSHAR+を用い，ラベルなしセンサデータを用いて
+CNN の事前学習にはSimCLRを用い，ラベルなしセンサデータを用いて
 自己教師あり学習を行った．
 損失関数には NT-Xent 損失を用い，
 バッチサイズ 256，学習率 $1.0 \times 10^{-3}$ の設定のもと，
@@ -672,7 +674,7 @@ CNN の重みを固定し，後続の層のみを学習した．
 
 \begin{figure*}[t]
   \centering
-  \includegraphics[width=0.95\linewidth, trim=0 0 0 0, clip, bb=0 0 856 189]{figure/trusco_scores.png} 
+  \includegraphics[width=0.95\linewidth, trim=0 0 0 0, clip, bb=0 0 856 189]{figure/trusco_scores_revised.png} 
   \caption{被験者ごとF1スコアの分布（物流倉庫実作業データセット）}
   \label{fig:trusco_scores}
 \end{figure*}
@@ -694,7 +696,7 @@ CNN の重みを固定し，後続の層のみを学習した．
       bb=0 0 258 272,
       clip
     ]{figure/trusco_cm_actcnn.png}
-    \caption{ActCNN}
+    \caption{PreCNN}
   \end{subfigure}
   \hfill
   \begin{subfigure}{0.24\linewidth}
@@ -712,7 +714,7 @@ CNN の重みを固定し，後続の層のみを学習した．
       bb=0 0 303 276,
       clip
     ]{figure/trusco_cm_actcnn-t.png}
-    \caption{ActCNN-T}
+    \caption{PreCNN-T}
   \end{subfigure}
   \caption{混同行列の比較（物流倉庫実作業データセット）}
   \label{fig:confmat_trusco}
@@ -721,12 +723,13 @@ CNN の重みを固定し，後続の層のみを学習した．
 
 
 \subsection{評価結果}
+
 \subsubsection{物流倉庫実作業データセット}
-物流倉庫実作業データセットに対して，被験者を 1 名ずつテストデータとする被験者間交差検証を行い，提案手法の認識性能を評価した．図\ref{tab:trusco_results}に各モデルについて全体の認識性能を示す．ActCNN および ActCNN-Tは，事前学習をしない場合と比べてMacro-F1，Weighted-F1 の両指標が向上しており，
-特にActCNN-Tは両指標において最もスコアが高く，Macro-F1=0.502，Weighted-F1=0.852で3つの作業を分類した．
+物流倉庫実作業データセットに対して，被験者を 1 名ずつテストデータとする被験者間交差検証を行い，提案手法の認識性能を評価した．図\ref{tab:trusco_results}に各モデルについて全体の認識性能を示す．PreCNN および PreCNN-Tは，事前学習をしない場合と比べてMacro-F1，Weighted-F1 の両指標が向上しており，
+特にPreCNN-Tは両指標において最もスコアが高く，Macro-F1=0.502，Weighted-F1=0.852で3つの作業を分類した．
 なお，本データセットでは作業クラス間の出現頻度の偏りが大きく，少数クラスの誤認識がMacro-F1の全体指標を下げ，両指標の値に差が生じている．
 
-\begin{table}[t]
+\begin{table}[b]
 \centering
 \caption{全体の認識スコア（物流倉庫実作業データセット）}
 \label{tab:trusco_results}
@@ -735,26 +738,36 @@ CNN の重みを固定し，後続の層のみを学習した．
 Model & Macro-F1 & Weighted-F1 \\
 \hline
 CNN & 0.375 & 0.710 \\
-ActCNN & 0.405 & 0.749 \\
+PreCNN & 0.405 & 0.749 \\
 DCL & 0.420 & 0.705 \\
 CNN-T & 0.363 & 0.694 \\
-ActCNN-T & \textbf{0.502} & \textbf{0.852} \\
+PrerCNN-T & \textbf{0.502} & \textbf{0.852} \\
 \hline
 \end{tabular}
 \end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth, trim=0 0 0 0,clip,bb=0 0 496 352]{figure/ratio_vs_f1_trusco.png} 
+  \caption{訓練データ量と認識精度の関係（物流倉庫実作業データセット）}
+  \label{fig:ratio_vs_f1_trusco}
+\end{figure}
 
 
 図\ref{fig:trusco_scores}は，被験者ごとのWeighted-F1スコアの分布を示したものである．
 長期時系列モデルを用いた手法では高い認識性能が得られる場合もあるが，
 被験者ごとの性能変動が大きい傾向が確認できる．
-これに対し，事前学習を導入した ActCNN-Tでは，
+これに対し，事前学習を導入した PreCNN-Tでは，
 被験者間のばらつきが相対的に小さく，安定した作業認識が実現されている．
 
 図\ref{fig:confmat_trusco}に各モデルの混同行列を示す．
 CNN 単体では，「仕分け（Sort）」と「搬送（Transport）」の間で顕著な誤分類が見られ，短時間の動作特徴のみでは両作業を十分に区別できていないことが分かる．
 
-これに対し，ActCNN（図\ref{fig:confmat_trusco}(b)）では，仕分けと搬送作業間の混同が低減しており，自己教師あり学習によって動作特徴の表現が改善されていることが確認できる．また，Transformer による時系列モデリングを導入した CNN-T（図\ref{fig:confmat_trusco}(c)）においても，作業文脈の考慮により誤分類が減少している．さらに，事前学習と時系列モデリングを組み合わせた ActCNN-T（図\ref{fig:confmat_trusco}(d)）では，さらに仕分けおよび搬送の混同が大きく改善し，双方において最も高い識別精度が得られている．
+これに対し，PreCNN（図\ref{fig:confmat_trusco}(b)）では，仕分けと搬送作業間の混同が低減しており，自己教師あり学習によって動作特徴の表現が改善されていることが確認できる．また，Transformer による時系列モデリングを導入した CNN-T（図\ref{fig:confmat_trusco}(c)）においても，作業文脈の考慮により誤分類が減少している．さらに，事前学習と時系列モデリングを組み合わせた PreCNN-T（図\ref{fig:confmat_trusco}(d)）では，さらに仕分けおよび搬送の混同が大きく改善し，双方において最も高い識別精度が得られている．
 
+また，図\ref{fig:ratio_vs_f1_trusco}には訓練データ量と認識精度の関係を示す．
+自己教師あり学習を導入したモデルは，少量の訓練データにおいても比較的高い性能を示しており，
+特にPreCNN-Tは，PreCNNと比較して訓練データ量の増加に伴う性能向上が大きい傾向が確認された．
 
 \begin{figure*}[t]
   \centering
@@ -795,6 +808,44 @@ ActCNN-T & \textbf{0.864} & \textbf{0.879} \\
 \hline
 \end{tabular}
 \end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth, trim=0 0 0 0,clip,bb=0 0 496 352]{figure/ratio_vs_f1_openpack.png} 
+  \caption{訓練データ量と認識精度の関係（OpenPack データセット）}
+  \label{fig:ratio_vs_f1_openpack}
+\end{figure}
+
+\begin{table*}[t]
+\centering
+\caption{データ拡張設定と認識性能の比較（物流倉庫実作業データセット）}
+\label{tab:augmentation_combined}
+\begin{tabular}{m{2cm}|m{10cm}|cc}
+\hline
+設定 
+& データ拡張 
+& \multicolumn{2}{c}{Weighted-F1} \\
+& 
+& PreCNN & PreCNN-T \\
+\hline
+
+既存設定 &
+Jitter (1.0)，Scale/Permutation (0.5) 
+& - & - \\[6pt]
+
+拡張追加 &
+Jitter (1.0)，Scale/Rotation/Time shift/Time warp/Permutation (0.5) 
+& - & - \\[6pt]
+
+確率調整 &
+Jitter (1.0)，Scale/Rotation/Time shift (0.5)，Time warp/Permutation (0.2) 
+& \textbf{0.749} & \textbf{0.852} \\[6pt]
+
+\hline
+\end{tabular}
+\end{table*}
+
+
 
 \subsection{考察}
 評価結果より，提案手法である ActCNN-T は，両データセットにおいて全体性能および被験者ごとの安定性の両面で最も高い性能を示した．ここでは性能向上の要因について考察する．
