@@ -767,11 +767,12 @@ CNN 単体では，「仕分け（Sort）」と「搬送（Transport）」の間
 
 また，図\ref{fig:ratio_vs_f1_trusco}には訓練データ量と認識精度の関係を示す．
 自己教師あり学習を導入したモデルは，少量の訓練データにおいても比較的高い性能を示しており，
-特にPreCNN-Tは，PreCNNと比較して訓練データ量の増加に伴う性能向上が大きい傾向が確認された．
+特にPreCNN-Tは，PreCNNと比較して訓練データ量の増加に伴う性能改善の度合いが大きく，
+より高い性能に到達する傾向が見られた．
 
 \begin{figure*}[t]
   \centering
-  \includegraphics[width=0.95\linewidth, trim=0 0 0 0, clip, bb=0 0 856 189]{figure/openpack_scores.png} 
+  \includegraphics[width=0.95\linewidth, trim=0 0 0 0, clip, bb=0 0 856 189]{figure/openpack_scores_revised.png} 
   \caption{被験者ごとF1スコアの分布（OpenPackデータセット）}
 
   \label{fig:op_scores}
@@ -788,9 +789,14 @@ CNN 単体では，「仕分け（Sort）」と「搬送（Transport）」の間
 
 
 \subsubsection{OpenPackデータセット}
-続いて，OpenPackデータセットを用いてLOOCVによる作業認識性能評価を行った．表\ref{tab:openpack_results}に各モデルの全体性能を示す．本データセットにおいても，提案手法であるActCNN-Tの認識性能が最も高く，Macro-F1=0.864，Weighted-F1=0.879で10個の作業を分類した．また，被験者ごとのWeighted-F1スコアの分布を示す図\ref{fig:op_scores}を見ると，ActCNN-Tは多くの被験者に対して安定して高いF1スコアを示していることが分かる．なお，本データセットにおいてはActCNN単体では単純なCNNとあまり性能が変化しなかった一方で，ActCNN-Tのように長期時系列モデルと組み合わせることで認識性能が改善している様子が確認された．
+続いて，OpenPackデータセットを用いてLOOCVによる作業認識性能評価を行った．表\ref{tab:openpack_results}に各モデルの全体性能を示す．本データセットにおいても，PreCNN-Tの認識性能が最も高い認識性能を示し，Macro-F1=0.864，Weighted-F1=0.879で10個の作業を分類した．また，被験者ごとのWeighted-F1スコアの分布を示す図\ref{fig:op_scores}を見ると，PreCNN-Tは多くの被験者に対して安定して高いF1スコアを示していることが分かる．なお，本データセットにおいてはPreCNN単体では単純なCNNとあまり性能が変化しなかった一方で，PreCNN-Tのように長期時系列モデルと組み合わせることで認識性能が改善している様子が確認された．
 
-また，提案手法の実際の作業シーケンスに対する時系列予測の例として，ある被験者（U0207）における約5分間の認識結果を図\ref{fig:timeline}に示す．認識結果と正解ラベルを比べると，多少のラベル変動が確認されるものの，作業全体の推移という観点では，実際の作業シーケンスと整合した予測結果が得られていた．
+また，図\ref{fig:ratio_vs_f1_openpack}に訓練データ量と認識精度の関係を示す．
+本データセットにおいても，自己教師あり学習を導入したモデルが訓練データが少ない段階で比較的高い認識性能を示す傾向が確認された．
+また，モデルのアーキテクチャが同一の場合，訓練データ量が少ない条件ではモデル間の性能差が大きく，
+データ量の増加に伴いその差は縮小する様子が見られた．
+
+さらに，提案手法の実際の作業シーケンスに対する時系列予測の例として，ある被験者（U0207）における約5分間の認識結果を図\ref{fig:timeline}に示す．認識結果と正解ラベルを比べると，多少のラベル変動が確認されるものの，作業全体の推移という観点では，実際の作業シーケンスと整合した予測結果が得られていた．
 
 \begin{table}[t]
 \centering
@@ -801,10 +807,10 @@ CNN 単体では，「仕分け（Sort）」と「搬送（Transport）」の間
 Model & Macro-F1 & Weighted-F1 \\
 \hline
 CNN & 0.568 & 0.569 \\
-ActCNN & 0.562 & 0.564 \\
-DCL & 0.808 & 0.831 \\
+PreCNN & 0.562 & 0.564 \\
+DCL & 0.780 & 0.803 \\
 CNN-T & 0.801 & 0.821 \\
-ActCNN-T & \textbf{0.864} & \textbf{0.879} \\
+PreCNN-T & \textbf{0.864} & \textbf{0.879} \\
 \hline
 \end{tabular}
 \end{table}
