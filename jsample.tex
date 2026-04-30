@@ -496,24 +496,24 @@ OpenPack Dataset は，物流作業を模した環境において，
 % 各データセットにおけるウィンドウ長やストライドの具体的な設定については，
 % 後述する実験条件の節で詳述する．
 
-\subsection{ベースライン}
-提案手法の有効性を検証するため，
+\subsection{比較手法}
+自己教師あり学習やモデル構成の違いが認識性能に与える影響を評価するため，
 入力長，事前学習の有無，および時系列モデリング手法の違いに基づいて，
 複数のベースラインモデルを設定する．表~\ref{tab:model_arch} に本実験で用いる認識モデルの概要を示す．
 
-CNN および ActCNN は，短時間のセンサ系列を入力とし，
+CNN および PreCNN は，短時間のセンサ系列を入力とし，
 CNN によって動作特徴を抽出した後，MLP により分類を行うモデルであり，
 長期的な時系列構造を考慮しない短時間ベースラインとして用いる．
-ActCNN では，CNNに対してCSSHAR+による事前学習を適用する．
+PreCNN では，CNNに対してSimCLRによる事前学習を適用する．
 
 DeepConvLSTM（DCL）\cite{ordonez2016deep} は，
 CNN による特徴抽出と LSTM による時系列モデリングを組み合わせた
 代表的な行動認識モデルであり，長期依存関係を考慮する深層学習ベースラインとして採用する．
 
-CNN-T および ActCNN-T は，長時間のセンサ系列を入力とし，
+CNN-T および PreCNN-T は，長時間のセンサ系列を入力とし，
 CNN による特徴抽出と Transformer Encoder による長期文脈モデリングを
 組み合わせた作業認識モデルである．
-ActCNN-TはCNNをCSSHAR+で事前学習した認識モデルである．
+PreCNN-TはCNNをSimCLRで事前学習した認識モデルである．
 
 
 \begin{table}[t]
@@ -525,11 +525,11 @@ ActCNN-TはCNNをCSSHAR+で事前学習した認識モデルである．
 Model & Pretraining & Input & Temporal model \\
 \hline
 CNN        & --          & Short (4\,s)  & -- \\
-ActCNN   & \checkmark  & Short (4\,s)  & -- \\
+PreCNN   & \checkmark  & Short (4\,s)  & -- \\
 \hline
 DCL        & --          & Long (40\,s)  & LSTM \\
 CNN-T      & --          & Long (40\,s)  & Transformer \\
-ActCNN-T  & \checkmark  & Long (40\,s)  & Transformer \\
+PreCNN-T  & \checkmark  & Long (40\,s)  & Transformer \\
 \hline
 \end{tabular}
 \end{table}
