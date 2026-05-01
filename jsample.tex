@@ -781,9 +781,9 @@ CNN 単体では，「仕分け（Sort）」と「搬送（Transport）」の間
 \subsubsection{OpenPackデータセット}
 OpenPackデータセットを用いてLOOCVによる作業認識性能評価を行った．表\ref{tab:openpack_results}に各モデルの全体性能を示す．本データセットにおいても，PreCNN-Tの認識性能が最も高い認識性能を示し，Macro-F1=0.864，Weighted-F1=0.879で10個の作業を分類した．また，被験者ごとのWeighted-F1スコアの分布を示す図\ref{fig:op_scores}を見ると，PreCNN-Tは多くの被験者に対して安定して高いF1スコアを示していることが分かる．
 
-また，全被験者の予測を累計し，作業ごとの持続時間と認識性能の関係をまとめたものを表\ref{tab:cnn_vs_precnn_t}に示す．
-まず，長期入力を扱うCNN-Tでは，Assemble Box（20.3 $\pm$ 7.0 [s]）やRelocate Item Label（18.2 $\pm$ 12.8 [s]）といった比較的長時間かつ持続時間のばらつきが大きい作業においても，高いF1スコア（それぞれ0.851，0.855）が観察された．
-また，自己教師あり学習を導入したPreCNN-Tでは，全ての作業においてF1スコアが向上しており，長期的な時系列文脈に加えて，動作表現の質の向上が認識性能に寄与していることが示唆される．
+また，作業ごとの持続時間とF1スコアの関係をまとめたものを表\ref{tab:cnn_vs_precnn_t}に示す．
+まず，CNN-Tでは，Assemble Box（20.3 $\pm$ 7.0 [s]）やRelocate Item Label（18.2 $\pm$ 12.8 [s]）といった比較的長時間かつ持続時間のばらつきが大きい作業においても，F1スコア0.8以上で分類できている．一方で，短時間かつ局所的な動作から構成される作業では相対的に認識性能が低下する傾向が見られた．
+また，自己教師あり学習を導入したPreCNN-Tでは同様の傾向が見られつつも，全ての作業においてF1スコアが向上しており，全体的な性能改善が確認された．
 
 \begin{table}[t]
 \centering
@@ -816,16 +816,16 @@ PreCNN-T & \textbf{0.864} & \textbf{0.879} \\
 \cline{3-4}
  & & CNN-T & PreCNN-T \\
 \hline
-Assemble Box & 20.3 $\pm$ 7.0 & 0.851 & 0.909 \\
-Relocate Item Label & 18.2 $\pm$ 12.8 & 0.855 & 0.901 \\
-Scan Label & 17.0 $\pm$ 9.2 & 0.844 & 0.877 \\
-Close Box & 13.2 $\pm$ 4.0 & 0.819 & 0.894 \\
-Picking & 12.3 $\pm$ 6.0 & 0.830 & 0.869 \\
-Insert Items & 11.7 $\pm$ 6.1 & 0.809 & 0.853 \\
-Fill out Order & 10.1 $\pm$ 4.6 & 0.843 & 0.865 \\
-Attach Shipping Label & 9.1 $\pm$ 3.0 & 0.873 & 0.901 \\
-Put on Back Table & 6.0 $\pm$ 2.1 & 0.847 & 0.869 \\
-Attach Box Label & 5.8 $\pm$ 2.3 & 0.670 & 0.758 \\
+Assemble Box & 20.3 $\pm$ 7.0 & 0.87 & 0.91 \\
+Relocate Item Label & 18.2 $\pm$ 12.8 & 0.82 & 0.90 \\
+Scan Label & 17.0 $\pm$ 9.2 & 0.82 & 0.87 \\
+Close Box & 13.2 $\pm$ 4.0 & 0.83 & 0.89 \\
+Picking & 12.3 $\pm$ 6.0 & 0.80 & 0.87 \\
+Insert Items & 11.7 $\pm$ 6.1 & 0.82 & 0.85 \\
+Fill out Order & 10.1 $\pm$ 4.6 & 0.81 & 0.86 \\
+Attach Shipping Label & 9.1 $\pm$ 3.0 & 0.84 & 0.88 \\
+Put on Back Table & 6.0 $\pm$ 2.1 & 0.77 & 0.83 \\
+Attach Box Label & 5.8 $\pm$ 2.3 & 0.64 & 0.76 \\
 \hline
 \end{tabular}
 
