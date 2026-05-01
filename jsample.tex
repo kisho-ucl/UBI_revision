@@ -778,25 +778,12 @@ CNN 単体では，「仕分け（Sort）」と「搬送（Transport）」の間
   \label{fig:op_scores}
 \end{figure*}
 
-
-\begin{figure*}[t]
-  \centering
-  \includegraphics[width=0.95\linewidth, trim=0 0 0 0, clip, bb=0 0 1432 194]{figure/openpack_timeline.png} 
-  \caption{作業シーケンスに対する認識結果の例（OpenPackデータセット）}
-
-  \label{fig:timeline}
-\end{figure*}
-
-
 \subsubsection{OpenPackデータセット}
-続いて，OpenPackデータセットを用いてLOOCVによる作業認識性能評価を行った．表\ref{tab:openpack_results}に各モデルの全体性能を示す．本データセットにおいても，PreCNN-Tの認識性能が最も高い認識性能を示し，Macro-F1=0.864，Weighted-F1=0.879で10個の作業を分類した．また，被験者ごとのWeighted-F1スコアの分布を示す図\ref{fig:op_scores}を見ると，PreCNN-Tは多くの被験者に対して安定して高いF1スコアを示していることが分かる．なお，本データセットにおいてはPreCNN単体では単純なCNNとあまり性能が変化しなかった一方で，PreCNN-Tのように長期時系列モデルと組み合わせることで認識性能が改善している様子が確認された．
+OpenPackデータセットを用いてLOOCVによる作業認識性能評価を行った．表\ref{tab:openpack_results}に各モデルの全体性能を示す．本データセットにおいても，PreCNN-Tの認識性能が最も高い認識性能を示し，Macro-F1=0.864，Weighted-F1=0.879で10個の作業を分類した．また，被験者ごとのWeighted-F1スコアの分布を示す図\ref{fig:op_scores}を見ると，PreCNN-Tは多くの被験者に対して安定して高いF1スコアを示していることが分かる．
 
-また，図\ref{fig:ratio_vs_f1_openpack}に訓練データ量と認識精度の関係を示す．
-本データセットにおいても，自己教師あり学習を導入したモデルが訓練データが少ない段階で比較的高い認識性能を示す傾向が確認された．
-また，モデルのアーキテクチャが同一の場合，訓練データ量が少ない条件ではモデル間の性能差が大きく，
-データ量の増加に伴いその差は縮小する様子が見られた．
-
-さらに，提案手法の実際の作業シーケンスに対する時系列予測の例として，ある被験者（U0207）における約5分間の認識結果を図\ref{fig:timeline}に示す．認識結果と正解ラベルを比べると，多少のラベル変動が確認されるものの，作業全体の推移という観点では，実際の作業シーケンスと整合した予測結果が得られていた．
+また，全被験者の予測を累計し，作業ごとの持続時間と認識性能の関係をまとめたものを表\ref{tab:cnn_vs_precnn_t}に示す．
+まず，長期入力を扱うCNN-Tでは，Assemble Box（20.3 $\pm$ 7.0 [s]）やRelocate Item Label（18.2 $\pm$ 12.8 [s]）といった比較的長時間かつ持続時間のばらつきが大きい作業においても，高いF1スコア（それぞれ0.851，0.855）が観察された．
+また，自己教師あり学習を導入したPreCNN-Tでは，全ての作業においてF1スコアが向上しており，長期的な時系列文脈に加えて，動作表現の質の向上が認識性能に寄与していることが示唆される．
 
 \begin{table}[t]
 \centering
@@ -815,6 +802,43 @@ PreCNN-T & \textbf{0.864} & \textbf{0.879} \\
 \end{tabular}
 \end{table}
 
+\begin{table}[t]
+\centering
+\caption{作業の持続時間と認識スコアの比較（OpenPackデータセット）}
+\label{tab:cnn_vs_precnn_t}
+
+\setlength{\tabcolsep}{3pt}
+\footnotesize
+
+\begin{tabular}{l|c|cc}
+\hline
+\multirow{2}{*}{Label} & \multirow{2}{*}{Duration [s]} & \multicolumn{2}{c}{F1-score} \\
+\cline{3-4}
+ & & CNN-T & PreCNN-T \\
+\hline
+Assemble Box & 20.3 $\pm$ 7.0 & 0.851 & 0.909 \\
+Relocate Item Label & 18.2 $\pm$ 12.8 & 0.855 & 0.901 \\
+Scan Label & 17.0 $\pm$ 9.2 & 0.844 & 0.877 \\
+Close Box & 13.2 $\pm$ 4.0 & 0.819 & 0.894 \\
+Picking & 12.3 $\pm$ 6.0 & 0.830 & 0.869 \\
+Insert Items & 11.7 $\pm$ 6.1 & 0.809 & 0.853 \\
+Fill out Order & 10.1 $\pm$ 4.6 & 0.843 & 0.865 \\
+Attach Shipping Label & 9.1 $\pm$ 3.0 & 0.873 & 0.901 \\
+Put on Back Table & 6.0 $\pm$ 2.1 & 0.847 & 0.869 \\
+Attach Box Label & 5.8 $\pm$ 2.3 & 0.670 & 0.758 \\
+\hline
+\end{tabular}
+
+\end{table}
+
+続いて，図\ref{fig:ratio_vs_f1_openpack}に訓練データ量と認識精度の関係を示す．
+本データセットにおいても，自己教師あり学習を導入したモデルが訓練データが少ない段階で比較的高い認識性能を示す傾向が確認された．
+また，モデルのアーキテクチャが同一の場合，訓練データ量が少ない条件ではモデル間の性能差が大きく，
+データ量の増加に伴いその差は縮小する様子が見られた．
+
+さらに，提案手法の実際の作業シーケンスに対する時系列予測の例として，ある被験者（U0207）における約5分間の認識結果を図\ref{fig:timeline}に示す．認識結果と正解ラベルを比べると，多少のラベル変動が確認されるものの，作業全体の推移という観点では，実際の作業シーケンスと整合した予測結果が得られていた．
+
+
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.95\linewidth, trim=0 0 0 0,clip,bb=0 0 496 352]{figure/ratio_vs_f1_openpack.png} 
@@ -822,34 +846,46 @@ PreCNN-T & \textbf{0.864} & \textbf{0.879} \\
   \label{fig:ratio_vs_f1_openpack}
 \end{figure}
 
-\begin{table*}[t]
-\centering
-\caption{データ拡張設定と認識性能の比較（物流倉庫実作業データセット）}
-\label{tab:augmentation_combined}
-\begin{tabular}{m{2cm}|m{10cm}|cc}
-\hline
-設定 
-& データ拡張 
-& \multicolumn{2}{c}{Weighted-F1} \\
-& 
-& PreCNN & PreCNN-T \\
-\hline
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth, trim=0 0 0 0, clip, bb=0 0 1432 194]{figure/openpack_timeline.png} 
+  \caption{作業シーケンスに対する認識結果の例（OpenPackデータセット）}
 
-既存設定 &
-Jitter (1.0)，Scale/Permutation (0.5) 
-& - & - \\[6pt]
+  \label{fig:timeline}
+\end{figure*}
 
-拡張追加 &
-Jitter (1.0)，Scale/Rotation/Time shift/Time warp/Permutation (0.5) 
-& - & - \\[6pt]
 
-確率調整 &
-Jitter (1.0)，Scale/Rotation/Time shift (0.5)，Time warp/Permutation (0.2) 
-& \textbf{0.749} & \textbf{0.852} \\[6pt]
 
-\hline
-\end{tabular}
-\end{table*}
+
+% \begin{table*}[t]
+% \centering
+% \caption{データ拡張設定と認識性能の比較（物流倉庫実作業データセット）}
+% \label{tab:augmentation_combined}
+% \begin{tabular}{m{2cm}|m{10cm}|cc}
+% \hline
+% 設定 
+% & データ拡張 
+% & \multicolumn{2}{c}{Weighted-F1} \\
+% & 
+% & PreCNN & PreCNN-T \\
+% \hline
+
+% 既存設定 &
+% Jitter (1.0)，Scale/Permutation(0.5) 
+% & - & - \\[6pt]
+
+% 拡張追加 &
+% Jitter(1.0)，Scale/Rotation/Time shift/Time warp/Permutation(0.5) 
+% & - & - \\[6pt]
+
+% 確率調整 &
+% Jitter(1.0)，Scale/Rotation/Time shift(0.5)，Time warp/Permutation(0.2) 
+% & \textbf{0.749} & \textbf{0.852} \\[6pt]
+
+% \hline
+% \end{tabular}
+% \end{table*}
+
 
 
 
